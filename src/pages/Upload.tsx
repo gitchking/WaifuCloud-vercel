@@ -32,7 +32,7 @@ interface Category {
 }
 
 const Upload = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [tags, setTags] = useState("");

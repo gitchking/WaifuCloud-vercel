@@ -117,25 +117,15 @@ const Admin = () => {
     }
 
     try {
-      // Check if user is admin first
+      // Check if user is logged in first
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error("You must be logged in");
         return;
       }
 
-      // Verify admin status
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('is_admin')
-        .eq('user_id', session.user.id)
-        .single();
-
-      if (profileError || !profile?.is_admin) {
-        toast.error("Admin privileges required");
-        return;
-      }
-
+      // For category creation, only admins should be allowed
+      // But for regular users, we should allow them to upload without creating categories
       let thumbnailUrl = null;
 
       // Upload thumbnail if provided
@@ -161,6 +151,18 @@ const Admin = () => {
       }
       
       if (editingCategory) {
+        // Only admins can edit categories
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (profileError || !profile?.is_admin) {
+          toast.error("Admin privileges required to edit categories");
+          return;
+        }
+
         // Update existing category
         const updateData: {
           name: string;
@@ -190,35 +192,64 @@ const Admin = () => {
         }
         toast.success("Category updated successfully");
       } else {
-        // Create new category
-        const insertData = {
-          name: categoryForm.name.trim(),
-          description: categoryForm.description.trim() || null,
-          is_active: categoryForm.is_active
-        };
-
-        // Only add thumbnail_url if it exists
-        if (thumbnailUrl) {
-          insertData.thumbnail_url = thumbnailUrl;
-        }
-
-        console.log('Creating category with data:', insertData);
-
-        const { error } = await supabase
+        // Check if category already exists
+        const { data: existingCategory } = await supabase
           .from("categories")
-          .insert(insertData);
+          .select("id")
+          .eq("name", categoryForm.name.trim())
+          .single();
 
-        if (error) {
-          console.error('Insert error:', error);
-          console.error('Error details:', {
-            message: error.message,
-            details: error.details,
-            hint: error.hint,
-            code: error.code
-          });
-          throw error;
+        if (existingCategory) {
+          // Category already exists, no need to create
+          toast.success("Using existing category");
+        } else {
+          // Only admins can create new categories
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('is_admin')
+            .eq('user_id', session.user.id)
+            .single();
+
+          if (profileError || !profile?.is_admin) {
+            // Regular users can't create categories, but they can still upload
+            toast.info("Using existing categories. Contact admin to create new categories.");
+          } else {
+            // Admin can create new category
+            const insertData: {
+              name: string;
+              description: string | null;
+              is_active: boolean;
+              thumbnail_url?: string;
+            } = {
+              name: categoryForm.name.trim(),
+              description: categoryForm.description.trim() || null,
+              is_active: categoryForm.is_active
+            };
+
+            // Only add thumbnail_url if it exists
+            if (thumbnailUrl) {
+              insertData.thumbnail_url = thumbnailUrl;
+            }
+
+            console.log('Creating category with data:', insertData);
+
+            const { error } = await supabase
+              .from("categories")
+              .insert(insertData);
+
+            if (error) {
+              console.error('Insert error:', error);
+              console.error('Error details:', {
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code
+              });
+              throw error;
+            }
+            toast.success("Category created successfully");
+          }
         }
-        toast.success("Category created successfully");
       }
 
       // Reset form and refresh categories
@@ -240,7 +271,7 @@ const Admin = () => {
         errorMessage = error;
       } else if (error && typeof error === 'object') {
         // Handle Supabase error objects
-        const supabaseError = error as any;
+        const supabaseError = error as { message?: string; error_description?: string; details?: string };
         if (supabaseError.message) {
           errorMessage = supabaseError.message;
         } else if (supabaseError.error_description) {
