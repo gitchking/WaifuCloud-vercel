@@ -355,8 +355,76 @@ const Watch = () => {
 
                       {wallpaper.credit && (
                         <div>
-                          <h2 className="text-sm font-medium text-muted-foreground mb-2">Credit</h2>
-                          <p className="text-sm">{wallpaper.credit}</p>
+                          <h2 className="text-sm font-medium text-muted-foreground mb-2">Credit / Source</h2>
+                          <div className="text-sm break-words">
+                            {(() => {
+                              const credit = wallpaper.credit;
+                              // Parse markdown-style links: [text](url)
+                              const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+                              const parts: React.ReactNode[] = [];
+                              let lastIndex = 0;
+                              let match;
+
+                              while ((match = markdownLinkRegex.exec(credit)) !== null) {
+                                // Add text before the link
+                                if (match.index > lastIndex) {
+                                  parts.push(
+                                    <span key={`text-${lastIndex}`}>
+                                      {credit.substring(lastIndex, match.index)}
+                                    </span>
+                                  );
+                                }
+
+                                // Add the clickable link
+                                const linkText = match[1];
+                                const linkUrl = match[2];
+                                parts.push(
+                                  <a
+                                    key={`link-${match.index}`}
+                                    href={linkUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary hover:underline"
+                                  >
+                                    {linkText}
+                                  </a>
+                                );
+
+                                lastIndex = match.index + match[0].length;
+                              }
+
+                              // Add remaining text
+                              if (lastIndex < credit.length) {
+                                parts.push(
+                                  <span key={`text-${lastIndex}`}>
+                                    {credit.substring(lastIndex)}
+                                  </span>
+                                );
+                              }
+
+                              // If no markdown links found, check for plain URLs
+                              if (parts.length === 0) {
+                                return credit.split(/(\bhttps?:\/\/[^\s]+)/gi).map((part, index) => {
+                                  if (part.match(/^https?:\/\//i)) {
+                                    return (
+                                      <a
+                                        key={index}
+                                        href={part}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover:underline"
+                                      >
+                                        {part}
+                                      </a>
+                                    );
+                                  }
+                                  return <span key={index}>{part}</span>;
+                                });
+                              }
+
+                              return parts;
+                            })()}
+                          </div>
                         </div>
                       )}
 

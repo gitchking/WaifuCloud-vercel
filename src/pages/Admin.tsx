@@ -709,14 +709,17 @@ const Admin = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="admin-credit">Credit</Label>
+                <Label htmlFor="admin-credit">Credit / Source (Optional)</Label>
                 <Input
                   id="admin-credit"
                   type="text"
-                  placeholder="Artist name or source"
+                  placeholder="e.g., [Artist Name](https://pixiv.net/artworks/12345)"
                   value={credit}
                   onChange={(e) => setCredit(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Use [Text](URL) format to make text clickable, or just paste a URL
+                </p>
               </div>
 
               <div className="flex items-center justify-between p-4 border border-border rounded-lg">
