@@ -34,6 +34,7 @@ import { Trash2, Edit, Eye, Upload, Calendar, Tag, Shield, Sparkles, Loader2 } f
 import { generateAutoTags } from "@/utils/autoTagger";
 import { TagSuggestions } from "@/components/TagSuggestions";
 import { Switch } from "@/components/ui/switch";
+import { CreditInput } from "@/components/CreditInput";
 
 // Color mapping based on first letter of tag
 const getTagColor = (tag: string) => {
@@ -563,15 +564,11 @@ const Dashboard = () => {
                       Type for suggestions • Use Auto Tag for AI analysis • Click popular tags to add quickly
                     </p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="credit">Credit (Optional)</Label>
-                    <Input
-                      id="credit"
-                      value={editingData.credit}
-                      onChange={(e) => setEditingData(prev => prev ? {...prev, credit: e.target.value} : null)}
-                      placeholder="Enter credit information"
-                    />
-                  </div>
+                  <CreditInput
+                    value={editingData.credit}
+                    onChange={(value) => setEditingData(prev => prev ? {...prev, credit: value} : null)}
+                    id="edit-credit"
+                  />
                   <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                     <div className="space-y-1">
                       <Label htmlFor="edit-nsfw" className="text-base font-medium">
