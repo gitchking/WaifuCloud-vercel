@@ -58,7 +58,7 @@ export const CategoryCard = ({ category }: CategoryCardProps) => {
               {category.name}
             </h3>
             <p className="text-white/80 text-sm">
-              {category.count} {category.count === 1 ? 'wallpaper' : 'wallpapers'}
+              {category.count} {category.count === 1 ? 'Artwork' : 'Artworks'}
             </p>
           </div>
         </div>
