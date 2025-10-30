@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getPreviewUrl, getThumbnailUrl } from "@/utils/imageOptimization";
 
 interface ImageSliderProps {
   images: string[];
@@ -32,10 +33,11 @@ export const ImageSlider = ({ images, alt }: ImageSliderProps) => {
       <div className="relative w-full">
         <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
           <img
-            src={images[0]}
+            src={getPreviewUrl(images[0])}
             alt={alt}
             className="w-full h-full object-contain"
             style={{ objectFit: 'contain' }}
+            loading="lazy"
           />
         </div>
       </div>
@@ -47,10 +49,11 @@ export const ImageSlider = ({ images, alt }: ImageSliderProps) => {
       {/* Main Image - Always 16:9 aspect ratio */}
       <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
         <img
-          src={images[currentIndex]}
+          src={getPreviewUrl(images[currentIndex])}
           alt={`${alt} - Image ${currentIndex + 1}`}
           className="w-full h-full object-contain"
           style={{ objectFit: 'contain' }}
+          loading="lazy"
         />
 
         {/* Image Counter */}
@@ -96,9 +99,10 @@ export const ImageSlider = ({ images, alt }: ImageSliderProps) => {
               }`}
             >
               <img
-                src={image}
+                src={getThumbnailUrl(image)}
                 alt={`Thumbnail ${index + 1}`}
                 className="w-full h-full object-cover"
+                loading="lazy"
               />
             </button>
           ))}
