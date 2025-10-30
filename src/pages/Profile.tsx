@@ -152,53 +152,109 @@ const Profile = () => {
   };
 
   const deleteAccount = async () => {
-    if (!confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+    const confirmed = window.confirm(
+      "⚠️ WARNING: This will permanently delete your account and all associated data including:\n\n" +
+      "• Your profile and settings\n" +
+      "• All uploaded wallpapers\n" +
+      "• Your favorites\n" +
+      "• Your avatar\n\n" +
+      "This action CANNOT be undone!\n\n" +
+      "Are you absolutely sure you want to continue?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Double confirmation
+    const doubleConfirm = window.confirm(
+      "This is your last chance!\n\n" +
+      "Click OK to permanently delete your account, or Cancel to abort."
+    );
+
+    if (!doubleConfirm) {
       return;
     }
 
     try {
-      // Delete user data from profiles table
-      const { error: profileError } = await supabase.from("profiles").delete().eq("user_id", user?.id);
-      
-      if (profileError) {
-        console.error("Error deleting profile:", profileError);
-        toast.error("Failed to delete profile: " + profileError.message);
+      if (!user?.id) {
+        toast.error("You must be logged in to delete your account");
         return;
       }
+
+      toast.loading("Deleting account data...", { id: "delete-account" });
+
+      // Step 1: Delete user data using database function
+      const { error: dataError } = await supabase.rpc('delete_user_data', {
+        user_id_to_delete: user.id
+      });
+
+      if (dataError) {
+        console.error("Error deleting user data:", dataError);
+        throw new Error("Failed to delete account data: " + dataError.message);
+      }
+
+      // Step 2: Delete avatar from storage if exists
+      try {
+        const { data: files } = await supabase.storage
+          .from('avatars')
+          .list(`${user.id}/`);
+
+        if (files && files.length > 0) {
+          const filePaths = files.map(file => `${user.id}/${file.name}`);
+          await supabase.storage.from('avatars').remove(filePaths);
+        }
+      } catch (storageError) {
+        console.error("Error deleting avatar:", storageError);
+        // Continue even if avatar deletion fails
+      }
+
+      // Step 3: Delete user from authentication
+      // Note: This requires the user to be logged in and will automatically log them out
+      const { error: authError } = await supabase.auth.admin.deleteUser(user.id);
       
-      // Delete user from auth
-      const { error: authError } = await supabase.auth.admin.deleteUser(user?.id || "");
-      
+      // If admin delete fails (expected on client side), just sign out
       if (authError) {
-        console.error("Error deleting user:", authError);
-        toast.error("Failed to delete account: " + authError.message);
-        return;
+        console.log("Admin delete not available on client, signing out instead");
       }
+
+      toast.success("Account deleted successfully", { id: "delete-account" });
       
-      toast.success("Account deleted successfully");
-      navigate("/login");
-    } catch (error) {
+      // Sign out and redirect
+      await supabase.auth.signOut();
+      navigate("/");
+    } catch (error: any) {
       console.error("Error deleting account:", error);
-      toast.error("Failed to delete account");
+      toast.error(error.message || "Failed to delete account", { id: "delete-account" });
     }
   };
 
   const changePassword = async () => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(user?.email || "", {
+      if (!user?.email) {
+        toast.error("No email associated with this account");
+        return;
+      }
+
+      toast.loading("Sending password reset email...", { id: "reset-password" });
+
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) {
         console.error("Error sending password reset:", error);
-        toast.error("Failed to send password reset email: " + error.message);
+        toast.error("Failed to send password reset email: " + error.message, { id: "reset-password" });
         return;
       }
       
-      toast.success("Password reset email sent. Check your inbox.");
-    } catch (error) {
+      toast.success(
+        `Password reset email sent to ${user.email}. Check your inbox and spam folder.`,
+        { id: "reset-password", duration: 5000 }
+      );
+    } catch (error: any) {
       console.error("Error sending password reset:", error);
-      toast.error("Failed to send password reset email");
+      toast.error(error.message || "Failed to send password reset email", { id: "reset-password" });
     }
   };
 

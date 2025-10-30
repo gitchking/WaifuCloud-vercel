@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Upload as UploadIcon, Sparkles, Loader2, Search, Plus, Image as ImageIcon, X } from "lucide-react";
 import { generateAutoTags } from "@/utils/autoTagger";
 import { TagSuggestions } from "@/components/TagSuggestions";
+import { MultipleImageUpload } from "@/components/MultipleImageUpload";
 
 interface Category {
   id: string;
@@ -39,9 +40,12 @@ const Upload = () => {
   const [category, setCategory] = useState("");
   const [credit, setCredit] = useState("");
   const [isNSFW, setIsNSFW] = useState(false);
-  const [orientation, setOrientation] = useState("horizontal"); // "horizontal" or "vertical"
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [orientation, setOrientation] = useState("horizontal");
+  
+  // Multiple images support
+  const [images, setImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  
   const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -56,7 +60,6 @@ const Upload = () => {
   const [categoryThumbnail, setCategoryThumbnail] = useState<File | null>(null);
   const [categoryThumbnailPreview, setCategoryThumbnailPreview] = useState<string | null>(null);
 
-  // Filter categories based on search
   const filteredCategories = categories.filter(cat =>
     cat.name.toLowerCase().includes(category.toLowerCase()) ||
     (cat.description && cat.description.toLowerCase().includes(category.toLowerCase()))
@@ -95,7 +98,6 @@ const Upload = () => {
       const file = e.target.files[0];
       setCategoryThumbnail(file);
       
-      // Create preview
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -117,7 +119,6 @@ const Upload = () => {
       return;
     }
 
-    // Check if category already exists
     const existingCategory = categories.find(
       cat => cat.name.toLowerCase() === newCategoryName.trim().toLowerCase()
     );
@@ -131,7 +132,6 @@ const Upload = () => {
     try {
       let thumbnailUrl = null;
 
-      // Upload thumbnail if provided
       if (categoryThumbnail) {
         const { data: { session } } = await supabase.auth.getSession();
         
@@ -139,7 +139,6 @@ const Upload = () => {
           throw new Error("You must be logged in to upload");
         }
 
-        // Upload thumbnail via edge function
         const formData = new FormData();
         formData.append("file", categoryThumbnail);
 
@@ -164,7 +163,6 @@ const Upload = () => {
         }
       }
 
-      // Create category
       const { data, error } = await supabase
         .from("categories")
         .insert({
@@ -178,13 +176,8 @@ const Upload = () => {
 
       if (error) throw error;
 
-      // Add to local categories list
       setCategories(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-      
-      // Set as selected category
       setCategory(data.name);
-      
-      // Reset form and close dialog
       setNewCategoryName("");
       setNewCategoryDescription("");
       setCategoryThumbnail(null);
@@ -200,35 +193,18 @@ const Upload = () => {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setImage(file);
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setImagePreview(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleAutoTag = async () => {
-    if (!image) {
-      toast.error("Please select an image first");
+    if (images.length === 0) {
+      toast.error("Please select at least one image first");
       return;
     }
 
     setAutoTagging(true);
     try {
-      const result = await generateAutoTags(image, title, category);
+      const result = await generateAutoTags(images[0], title, category);
       const newTags = result.tags.join(", ");
       
       if (tags) {
-        // Merge with existing tags
         const existingTags = tags.split(",").map(tag => tag.trim());
         const allTags = [...new Set([...existingTags, ...result.tags])];
         setTags(allTags.join(", "));
@@ -248,54 +224,50 @@ const Upload = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!image || !title || !category) {
-      toast.error("Please fill in all required fields and select an image");
+    if (images.length === 0 || !title || !category) {
+      toast.error("Please fill in all required fields and select at least one image");
       return;
     }
 
     setUploading(true);
 
     try {
-      // Get auth session for edge function
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
         throw new Error("You must be logged in to upload");
       }
 
-      // Upload image via edge function (bypasses CORS)
-      const formData = new FormData();
-      formData.append("file", image);
-
-      console.log("Uploading to:", `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-image`);
+      // Upload all images
+      const imageUrls: string[] = [];
       
-      const uploadResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-image`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: formData,
+      for (let i = 0; i < images.length; i++) {
+        const formData = new FormData();
+        formData.append("file", images[i]);
+
+        const uploadResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-image`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: formData,
+          }
+        );
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload image ${i + 1}`);
         }
-      );
 
-      console.log("Upload response status:", uploadResponse.status);
-      
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error("Upload failed with status:", uploadResponse.status, "Response:", errorText);
-        throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
+        const uploadResult = await uploadResponse.json();
+        
+        if (!uploadResult.success || !uploadResult.url) {
+          throw new Error(`Image ${i + 1} upload failed - no URL returned`);
+        }
+
+        imageUrls.push(uploadResult.url);
       }
-
-      const uploadResult = await uploadResponse.json();
-      console.log("Upload result:", uploadResult);
-      
-      if (!uploadResult.success || !uploadResult.url) {
-        throw new Error("Image upload failed - no URL returned");
-      }
-
-      const imageUrl = uploadResult.url;
 
       // Check if category exists, create if it doesn't
       let finalCategory = category.trim();
@@ -304,7 +276,6 @@ const Upload = () => {
       );
 
       if (!existingCategory) {
-        // Create the category first
         const { data: newCategoryData, error: categoryError } = await supabase
           .from("categories")
           .insert({
@@ -315,32 +286,30 @@ const Upload = () => {
           .select()
           .single();
 
-        if (categoryError) {
-          // If category creation fails, still try to upload with the category name
-          console.warn("Failed to create category, proceeding with upload:", categoryError);
-        } else {
-          // Update local categories list
+        if (!categoryError && newCategoryData) {
           setCategories(prev => [...prev, newCategoryData].sort((a, b) => a.name.localeCompare(b.name)));
         }
       }
 
-      // Insert wallpaper metadata
+      // Insert waifu metadata with multiple images
       const { error: insertError } = await supabase
         .from("wallpapers")
         .insert({
           title,
-          image_url: imageUrl.trim(),
+          image_url: imageUrls[0], // Keep first image as primary for backward compatibility
+          images: imageUrls, // Store all images in array
+          image_count: imageUrls.length,
           tags: tags.split(",").map((tag) => tag.trim()).filter(tag => tag.length > 0),
           category: finalCategory,
           credit: credit || null,
           is_nsfw: isNSFW,
-          orientation, // Add orientation to the insert
+          orientation,
           uploaded_by: user.id,
         });
 
       if (insertError) throw insertError;
 
-      toast.success("Wallpaper uploaded successfully!");
+      toast.success("Waifu uploaded successfully!");
       navigate("/");
     } catch (error: unknown) {
       console.error("Upload error:", error);
@@ -365,7 +334,7 @@ const Upload = () => {
                 Upload Waifu
               </h1>
               <p className="text-muted-foreground text-sm">
-                Share your amazing anime wallpapers with the community
+                Share your amazing anime artwork with the community
               </p>
             </div>
 
@@ -377,7 +346,7 @@ const Upload = () => {
                 <Input
                   id="title"
                   type="text"
-                  placeholder="Enter wallpaper title"
+                  placeholder="Enter waifu title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
@@ -406,7 +375,6 @@ const Upload = () => {
                   </div>
                 ) : (
                   <div className="relative">
-                    {/* Category Search Input */}
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -420,10 +388,8 @@ const Upload = () => {
                       />
                     </div>
 
-                    {/* Autocomplete Suggestions */}
                     {showCategoryDropdown && (
                       <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
-                        {/* Existing categories */}
                         {filteredCategories.length > 0 && (
                           <>
                             {filteredCategories.slice(0, 5).map((cat) => (
@@ -463,7 +429,6 @@ const Upload = () => {
                           </>
                         )}
                         
-                        {/* No categories found */}
                         {filteredCategories.length === 0 && category && (
                           <button
                             type="button"
@@ -479,7 +444,6 @@ const Upload = () => {
                           </button>
                         )}
 
-                        {/* Show popular categories when no search */}
                         {!category && categories.length > 0 && (
                           <>
                             <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b border-border">
@@ -537,7 +501,7 @@ const Upload = () => {
                     variant="outline"
                     size="sm"
                     onClick={handleAutoTag}
-                    disabled={!image || autoTagging}
+                    disabled={images.length === 0 || autoTagging}
                     className="text-xs"
                   >
                     {autoTagging ? (
@@ -559,7 +523,7 @@ const Upload = () => {
                   placeholder="Type tags like 'ani' for anime suggestions..."
                 />
                 <p className="text-xs text-muted-foreground">
-                  Type to get suggestions • Use Auto Tag for AI-generated tags • Popular tags available below
+                  Type to get suggestions • Use Auto Tag for AI-generated tags
                 </p>
               </div>
 
@@ -591,21 +555,18 @@ const Upload = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="image">
-                  Image <span className="text-destructive">*</span>
+                <Label>
+                  Images <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="image"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  required
+                <MultipleImageUpload
+                  images={images}
+                  imagePreviews={imagePreviews}
+                  onImagesChange={(newImages, newPreviews) => {
+                    setImages(newImages);
+                    setImagePreviews(newPreviews);
+                  }}
+                  maxImages={15}
                 />
-                {image && (
-                  <p className="text-sm text-muted-foreground">
-                    Selected: {image.name}
-                  </p>
-                )}
               </div>
 
               <Button
@@ -629,25 +590,30 @@ const Upload = () => {
                     Selected: {orientation === "horizontal" ? "Horizontal (16:9)" : "Vertical (9:16)"}
                   </div>
                   <div className="flex items-center justify-center">
-                    {imagePreview ? (
+                    {imagePreviews.length > 0 ? (
                       <div className="relative bg-background rounded overflow-hidden border">
                         <div 
                           className={
                             orientation === "horizontal" 
-                              ? "w-64 h-36" // 16:9 aspect ratio
-                              : "w-36 h-64" // 9:16 aspect ratio
+                              ? "w-64 h-36"
+                              : "w-36 h-64"
                           }
                         >
                           <img
-                            src={imagePreview}
+                            src={imagePreviews[0]}
                             alt="Preview"
                             className="w-full h-full object-cover"
                           />
                         </div>
+                        {imagePreviews.length > 1 && (
+                          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                            +{imagePreviews.length - 1} more
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="text-muted-foreground text-center py-8">
-                        <p>Upload an image to see preview</p>
+                        <p>Upload images to see preview</p>
                       </div>
                     )}
                   </div>
@@ -655,32 +621,35 @@ const Upload = () => {
               </div>
 
               <div>
-                <h3 className="font-medium mb-2">Wallpaper Card Preview</h3>
+                <h3 className="font-medium mb-2">Waifu Card Preview</h3>
                 <div className="bg-muted rounded-lg p-4">
-                  {imagePreview ? (
+                  {imagePreviews.length > 0 ? (
                     <div className="group overflow-hidden border-border/50 bg-card shadow-card transition-all duration-300">
-                      {/* Image */}
                       <div className="relative overflow-hidden bg-muted">
                         <div 
                           className={
                             orientation === "horizontal" 
-                              ? "aspect-[16/9]" // 16:9 aspect ratio
-                              : "aspect-[9/16]" // 9:16 aspect ratio
+                              ? "aspect-[16/9]"
+                              : "aspect-[9/16]"
                           }
                         >
                           <img
-                            src={imagePreview}
+                            src={imagePreviews[0]}
                             alt="Preview"
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          {imagePreviews.length > 1 && (
+                            <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                              {imagePreviews.length} images
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Content */}
                       <div className="p-3 space-y-2">
                         <h3 className="font-display font-semibold line-clamp-1 group-hover:text-primary transition-colors">
-                          {title || "Wallpaper Title"}
+                          {title || "Waifu Title"}
                         </h3>
                         {category && (
                           <span className="inline-block px-2 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium">
@@ -691,7 +660,7 @@ const Upload = () => {
                     </div>
                   ) : (
                     <div className="text-muted-foreground text-center py-8">
-                      <p>Upload an image to see card preview</p>
+                      <p>Upload images to see card preview</p>
                     </div>
                   )}
                 </div>
@@ -706,7 +675,7 @@ const Upload = () => {
             <DialogHeader>
               <DialogTitle>Create New Category</DialogTitle>
               <DialogDescription>
-                Add a new category that everyone can use when uploading wallpapers.
+                Add a new category that everyone can use when uploading waifus.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -758,40 +727,34 @@ const Upload = () => {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => document.getElementById('category-thumbnail')?.click()}
+                      onClick={() => document.getElementById("category-thumbnail")?.click()}
                     >
-                      <UploadIcon className="h-4 w-4 mr-2" />
-                      Choose Image
+                      Choose File
                     </Button>
                   </div>
                 ) : (
                   <div className="relative">
-                    <div className="border border-border rounded-lg p-2">
-                      <img
-                        src={categoryThumbnailPreview}
-                        alt="Category thumbnail preview"
-                        className="w-full h-32 object-cover rounded"
-                      />
-                    </div>
+                    <img
+                      src={categoryThumbnailPreview}
+                      alt="Category thumbnail"
+                      className="w-full h-32 object-cover rounded-lg"
+                    />
                     <Button
                       type="button"
                       variant="destructive"
-                      size="sm"
+                      size="icon"
+                      className="absolute top-2 right-2 h-8 w-8"
                       onClick={removeCategoryThumbnail}
-                      className="absolute top-1 right-1 h-6 w-6 p-0"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Recommended: 16:9 aspect ratio, max 2MB
-                </p>
               </div>
             </div>
             <DialogFooter>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setShowCreateCategoryDialog(false);
                   setNewCategoryName("");
@@ -802,22 +765,12 @@ const Upload = () => {
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleCreateCategory}
-                disabled={!newCategoryName.trim() || creatingCategory}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                disabled={creatingCategory || !newCategoryName.trim()}
+                className="gradient-primary text-white border-0"
               >
-                {creatingCategory ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Category
-                  </>
-                )}
+                {creatingCategory ? "Creating..." : "Create Category"}
               </Button>
             </DialogFooter>
           </DialogContent>

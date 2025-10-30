@@ -26,7 +26,7 @@ const Login = () => {
     const { error } = await signIn(email, password);
     
     if (error) {
-      toast.error(error.message || "Failed to sign in");
+      toast.error(error.message || "Invalid email or password");
     } else {
       toast.success("Welcome back!");
     }

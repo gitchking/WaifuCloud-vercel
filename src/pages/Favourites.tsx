@@ -53,6 +53,8 @@ const Favourites = () => {
           id: string;
           title: string;
           image_url: string;
+          images: string[] | null;
+          image_count: number | null;
           tags: string[] | null;
           category: string;
           is_nsfw: boolean;
@@ -64,6 +66,8 @@ const Favourites = () => {
           title: item.title,
           imageUrl: item.image_url,
           image_url: item.image_url,
+          images: item.images || [item.image_url],
+          image_count: item.image_count || 1,
           tags: item.tags || [],
           category: item.category,
           isNSFW: item.is_nsfw,

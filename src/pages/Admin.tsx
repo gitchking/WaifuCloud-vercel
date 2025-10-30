@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MultipleImageUpload } from "@/components/MultipleImageUpload";
 
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,8 +36,11 @@ const Admin = () => {
   const [credit, setCredit] = useState("");
   const [isNSFW, setIsNSFW] = useState(false);
   const [orientation, setOrientation] = useState("horizontal");
-  const [image, setImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // Multiple images support
+  const [images, setImages] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  
   const [uploading, setUploading] = useState(false);
 
   // Category management states
@@ -315,27 +319,13 @@ const Admin = () => {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setImage(file);
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setImagePreview(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  // Removed - now using MultipleImageUpload component
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!image || !title || !category) {
-      toast.error("Please fill in all required fields and select an image");
+    if (images.length === 0 || !title || !category) {
+      toast.error("Please fill in all required fields and select at least one image");
       return;
     }
 
@@ -349,56 +339,62 @@ const Admin = () => {
         throw new Error("You must be logged in to upload");
       }
 
-      // Upload image via edge function (bypasses CORS)
-      const formData = new FormData();
-      formData.append("file", image);
-
-      const uploadResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-image`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: formData,
-        }
-      );
-
-      if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`Upload failed: ${errorText}`);
-      }
-
-      const uploadResult = await uploadResponse.json();
+      // Upload all images
+      const imageUrls: string[] = [];
       
-      if (!uploadResult.success || !uploadResult.url) {
-        throw new Error("Image upload failed - no URL returned");
+      for (let i = 0; i < images.length; i++) {
+        const formData = new FormData();
+        formData.append("file", images[i]);
+
+        const uploadResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-image`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: formData,
+          }
+        );
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload image ${i + 1}`);
+        }
+
+        const uploadResult = await uploadResponse.json();
+        
+        if (!uploadResult.success || !uploadResult.url) {
+          throw new Error(`Image ${i + 1} upload failed - no URL returned`);
+        }
+
+        imageUrls.push(uploadResult.url);
       }
 
-      const imageUrl = uploadResult.url;
-
+      // Insert waifu metadata with multiple images
       const { error: insertError } = await supabase.from("wallpapers").insert({
         title,
-        image_url: imageUrl.trim(),
-        tags: tags.split(",").map((tag) => tag.trim()),
+        image_url: imageUrls[0], // Keep first image as primary for backward compatibility
+        images: imageUrls, // Store all images in array
+        image_count: imageUrls.length,
+        tags: tags.split(",").map((tag) => tag.trim()).filter(tag => tag.length > 0),
         category,
         credit: credit || null,
         is_nsfw: isNSFW,
-        orientation, // Add orientation to the insert
+        orientation,
         uploaded_by: user.id,
       });
 
       if (insertError) throw insertError;
 
-      toast.success("Wallpaper uploaded successfully!");
+      toast.success("Waifu uploaded successfully!");
       setTitle("");
       setTags("");
       setCategory("");
       setCredit("");
       setIsNSFW(false);
       setOrientation("horizontal");
-      setImage(null);
-      setImagePreview(null);
+      setImages([]);
+      setImagePreviews([]);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to upload waifu");
     } finally {
@@ -664,21 +660,18 @@ const Admin = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="admin-image">
-                  Image <span className="text-destructive">*</span>
+                <Label>
+                  Images <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="admin-image"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  required
+                <MultipleImageUpload
+                  images={images}
+                  imagePreviews={imagePreviews}
+                  onImagesChange={(newImages, newPreviews) => {
+                    setImages(newImages);
+                    setImagePreviews(newPreviews);
+                  }}
+                  maxImages={15}
                 />
-                {image && (
-                  <p className="text-sm text-muted-foreground">
-                    Selected: {image.name}
-                  </p>
-                )}
               </div>
 
               <Button
@@ -702,25 +695,30 @@ const Admin = () => {
                     Selected: {orientation === "horizontal" ? "Horizontal (16:9)" : "Vertical (9:16)"}
                   </div>
                   <div className="flex items-center justify-center">
-                    {imagePreview ? (
+                    {imagePreviews.length > 0 ? (
                       <div className="relative bg-background rounded overflow-hidden border">
                         <div 
                           className={
                             orientation === "horizontal" 
-                              ? "w-64 h-36" // 16:9 aspect ratio
-                              : "w-36 h-64" // 9:16 aspect ratio
+                              ? "w-64 h-36"
+                              : "w-36 h-64"
                           }
                         >
                           <img
-                            src={imagePreview}
+                            src={imagePreviews[0]}
                             alt="Preview"
                             className="w-full h-full object-cover"
                           />
                         </div>
+                        {imagePreviews.length > 1 && (
+                          <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                            +{imagePreviews.length - 1} more
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="text-muted-foreground text-center py-8">
-                        <p>Upload an image to see preview</p>
+                        <p>Upload images to see preview</p>
                       </div>
                     )}
                   </div>
@@ -728,38 +726,46 @@ const Admin = () => {
               </div>
 
               <div>
-                <h3 className="font-medium mb-2">Wallpaper Card Preview</h3>
+                <h3 className="font-medium mb-2">Waifu Card Preview</h3>
                 <div className="bg-muted rounded-lg p-4">
-                  {imagePreview ? (
+                  {imagePreviews.length > 0 ? (
                     <div className="group overflow-hidden border-border/50 bg-card shadow-card transition-all duration-300">
-                      {/* Image */}
                       <div className="relative overflow-hidden bg-muted">
                         <div 
                           className={
                             orientation === "horizontal" 
-                              ? "aspect-[16/9]" // 16:9 aspect ratio
-                              : "aspect-[9/16]" // 9:16 aspect ratio
+                              ? "aspect-[16/9]"
+                              : "aspect-[9/16]"
                           }
                         >
                           <img
-                            src={imagePreview}
+                            src={imagePreviews[0]}
                             alt="Preview"
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          {imagePreviews.length > 1 && (
+                            <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                              {imagePreviews.length} images
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* Content */}
                       <div className="p-3 space-y-2">
                         <h3 className="font-display font-semibold line-clamp-1 group-hover:text-primary transition-colors">
-                          {title || "Wallpaper Title"}
+                          {title || "Waifu Title"}
                         </h3>
+                        {category && (
+                          <span className="inline-block px-2 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium">
+                            {category}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ) : (
                     <div className="text-muted-foreground text-center py-8">
-                      <p>Upload an image to see card preview</p>
+                      <p>Upload images to see card preview</p>
                     </div>
                   )}
                   </div>

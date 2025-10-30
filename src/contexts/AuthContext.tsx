@@ -69,12 +69,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
-    if (!error) {
+    if (!error && data.user) {
+      // Check if profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", data.user.id)
+        .single();
+      
+      if (profileError || !profile) {
+        // Profile doesn't exist - create a new one
+        const { error: createError } = await supabase.from("profiles").insert({
+          user_id: data.user.id,
+          username: email.split("@")[0],
+          is_admin: false,
+        });
+        
+        if (createError) {
+          console.error("Error creating profile:", createError);
+          await supabase.auth.signOut();
+          return { 
+            error: new Error("Failed to create profile") as any
+          };
+        }
+      }
+      
       navigate("/");
     }
     
@@ -86,21 +110,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        data: {
+          username: username || email.split("@")[0],
+        }
       },
     });
 
-    if (!error && data.user) {
-      await supabase.from("profiles").insert({
+    if (error) {
+      return { error };
+    }
+
+    if (data.user) {
+      // Create profile (only if it doesn't exist)
+      const { error: profileError } = await supabase.from("profiles").upsert({
         user_id: data.user.id,
         username: username || email.split("@")[0],
         is_admin: false,
+      }, {
+        onConflict: 'user_id',
+        ignoreDuplicates: true
       });
-      
-      navigate("/");
+
+      if (profileError) {
+        console.error("Profile creation error:", profileError);
+      }
+
+      // With email confirmation disabled, we get a session immediately
+      // Navigate to home page
+      if (data.session) {
+        navigate("/");
+      }
     }
 
-    return { error };
+    return { error: null };
   };
 
   const signOut = async () => {

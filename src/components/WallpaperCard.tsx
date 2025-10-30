@@ -14,6 +14,8 @@ export const WallpaperCard = ({ wallpaper }: WallpaperCardProps) => {
     ? "aspect-[3/4]" 
     : "aspect-[16/9]";
 
+  const hasMultipleImages = wallpaper.image_count && wallpaper.image_count > 1;
+
   return (
     <Card className="group overflow-hidden cursor-pointer border-border/50 bg-card shadow-card transition-all duration-300 animate-fade-in">
       <Link to={`/watch/${wallpaper.id}`}>
@@ -26,6 +28,13 @@ export const WallpaperCard = ({ wallpaper }: WallpaperCardProps) => {
           
           {/* Subtle hover overlay */}
           <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors duration-300" />
+          
+          {/* Multiple images indicator */}
+          {hasMultipleImages && (
+            <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-md backdrop-blur-sm">
+              {wallpaper.image_count} images
+            </div>
+          )}
         </div>
       </Link>
     </Card>

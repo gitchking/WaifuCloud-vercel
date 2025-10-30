@@ -19,6 +19,7 @@ import Watch from "./pages/Watch";
 import Favourites from "./pages/Favourites";
 import Profile from "./pages/Profile";
 import TestProfile from "./pages/TestProfile";
+import ResetPassword from "./pages/ResetPassword";
 import About from "./pages/About";
 import FAQ from "./pages/FAQ";
 import DMCA from "./pages/DMCA";
@@ -47,6 +48,7 @@ const App = () => (
               <Route path="/favourites" element={<Favourites />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/test-profile" element={<TestProfile />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/upload" element={<Upload />} />

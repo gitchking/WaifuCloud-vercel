@@ -40,7 +40,7 @@ const Register = () => {
     if (error) {
       toast.error(error.message || "Failed to create account");
     } else {
-      toast.success("Account created successfully!");
+      toast.success("Account created successfully! Welcome!");
     }
     
     setLoading(false);

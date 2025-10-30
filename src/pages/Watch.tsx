@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ShareDialog } from "@/components/ShareDialog";
+import { ImageSlider } from "@/components/ImageSlider";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { ArrowLeft, Download, Heart, Share2, User } from "lucide-react";
@@ -96,6 +97,8 @@ const Watch = () => {
         title: data.title,
         imageUrl: data.image_url,
         image_url: data.image_url,
+        images: data.images || [data.image_url], // Support multiple images
+        image_count: data.image_count || 1,
         tags: data.tags || [],
         category: data.category,
         isNSFW: data.is_nsfw,
@@ -188,33 +191,54 @@ const Watch = () => {
     try {
       if (!wallpaper) return;
 
-      // Try to download directly first
-      const response = await fetch(wallpaper.imageUrl, {
-        mode: 'cors'
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const images = wallpaper.images || [wallpaper.imageUrl];
+      
+      // If multiple images, download all
+      if (images.length > 1) {
+        toast.info(`Downloading ${images.length} images...`);
+        
+        for (let i = 0; i < images.length; i++) {
+          try {
+            const response = await fetch(images[i], { mode: 'cors' });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${wallpaper.title.replace(/\s+/g, '_')}_${i + 1}.jpg`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            // Small delay between downloads
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (err) {
+            console.error(`Error downloading image ${i + 1}:`, err);
+          }
+        }
+        
+        toast.success("All images downloaded!");
+      } else {
+        // Single image download
+        const response = await fetch(wallpaper.imageUrl, { mode: 'cors' });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${wallpaper.title.replace(/\s+/g, '_')}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        toast.success("Download started!");
       }
-
-      const blob = await response.blob();
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${wallpaper.title.replace(/\s+/g, '_')}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-
-      // Cleanup
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success("Download started!");
     } catch (error) {
       console.error("Download error:", error);
-      // Fallback: open image in new tab
       window.open(wallpaper?.imageUrl, '_blank');
       toast.info("Opening image in new tab for download");
     }
@@ -273,14 +297,11 @@ const Watch = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Image Preview */}
             <div className="lg:col-span-2">
-              <Card className="overflow-hidden border-border/50 bg-card">
-                <div className="relative aspect-[16/9] overflow-hidden">
-                  <img
-                    src={wallpaper.imageUrl}
-                    alt={wallpaper.title}
-                    className="h-full w-full object-contain bg-muted"
-                  />
-                </div>
+              <Card className="overflow-hidden border-border/50 bg-card p-4">
+                <ImageSlider 
+                  images={wallpaper.images || [wallpaper.imageUrl]} 
+                  alt={wallpaper.title}
+                />
               </Card>
             </div>
 

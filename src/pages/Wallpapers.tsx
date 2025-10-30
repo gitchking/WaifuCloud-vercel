@@ -178,6 +178,8 @@ const Wallpapers = () => {
         id: string;
         title: string;
         image_url: string;
+        images: string[] | null;
+        image_count: number | null;
         tags: string[] | null;
         category: string;
         is_nsfw: boolean;
@@ -188,6 +190,8 @@ const Wallpapers = () => {
         title: w.title,
         imageUrl: w.image_url,
         image_url: w.image_url,
+        images: w.images || [w.image_url],
+        image_count: w.image_count || 1,
         tags: w.tags || [],
         category: w.category,
         isNSFW: w.is_nsfw,

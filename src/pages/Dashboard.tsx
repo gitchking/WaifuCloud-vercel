@@ -76,6 +76,8 @@ interface Wallpaper {
   id: string;
   title: string;
   image_url: string;
+  images?: string[];
+  image_count?: number;
   tags: string[];
   category: string;
   credit: string | null;
@@ -107,7 +109,7 @@ const Dashboard = () => {
     try {
       const { data, error } = await supabase
         .from("wallpapers")
-        .select("id, title, image_url, tags, category, is_nsfw, created_at, credit, orientation")
+        .select("id, title, image_url, images, image_count, tags, category, is_nsfw, created_at, credit, orientation")
         .eq("uploaded_by", user!.id)
         .order("created_at", { ascending: false });
 
@@ -117,6 +119,8 @@ const Dashboard = () => {
         id: string;
         title: string;
         image_url: string;
+        images: string[] | null;
+        image_count: number | null;
         tags: string[] | null;
         category: string;
         is_nsfw: boolean;
@@ -128,6 +132,8 @@ const Dashboard = () => {
         title: item.title,
         imageUrl: item.image_url,
         image_url: item.image_url,
+        images: item.images || [item.image_url],
+        image_count: item.image_count || 1,
         tags: item.tags || [],
         category: item.category,
         isNSFW: item.is_nsfw,
@@ -139,7 +145,7 @@ const Dashboard = () => {
       
       setWallpapers(wallpaperData);
     } catch (error: unknown) {
-      toast.error("Failed to load wallpapers");
+      toast.error("Failed to load waifus");
     } finally {
       setLoading(false);
     }
@@ -361,7 +367,7 @@ const Dashboard = () => {
 
           {loading ? (
             <div className="text-center py-12">
-              <LoadingSpinner size="lg" text="Loading your wallpapers..." />
+              <LoadingSpinner size="lg" text="Loading your waifus..." />
             </div>
           ) : wallpapers.length === 0 ? (
             <Card className="p-12 text-center">
@@ -378,7 +384,7 @@ const Dashboard = () => {
           ) : (
             <Card className="overflow-hidden shadow-lg">
               <div className="p-6 border-b border-border/40">
-                <h2 className="text-xl font-semibold">Your Wallpapers</h2>
+                <h2 className="text-xl font-semibold">Your Waifus</h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Manage and edit your uploaded content
                 </p>
@@ -405,6 +411,11 @@ const Dashboard = () => {
                               className="w-20 h-12 object-cover rounded-lg shadow-sm group-hover:shadow-md transition-shadow"
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded-lg transition-colors" />
+                            {wallpaper.image_count && wallpaper.image_count > 1 && (
+                              <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
+                                {wallpaper.image_count}
+                              </div>
+                            )}
                           </div>
                         </td>
                         <td className="p-4">
@@ -494,9 +505,9 @@ const Dashboard = () => {
           <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Edit Wallpaper</DialogTitle>
+                <DialogTitle>Edit Waifu</DialogTitle>
                 <DialogDescription>
-                  Update the details of your wallpaper.
+                  Update the details of your waifu.
                 </DialogDescription>
               </DialogHeader>
               {editingData && (
@@ -507,7 +518,7 @@ const Dashboard = () => {
                       id="title"
                       value={editingData.title}
                       onChange={(e) => setEditingData(prev => prev ? {...prev, title: e.target.value} : null)}
-                      placeholder="Enter wallpaper title"
+                      placeholder="Enter waifu title"
                     />
                   </div>
                   <div className="space-y-2">
@@ -593,10 +604,10 @@ const Dashboard = () => {
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete Wallpaper</AlertDialogTitle>
+                <AlertDialogTitle>Delete Waifu</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Are you sure you want to delete this wallpaper? This action cannot be undone.
-                  The wallpaper will be permanently removed from your account and our servers.
+                  Are you sure you want to delete this waifu? This action cannot be undone.
+                  The waifu will be permanently removed from your account and our servers.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

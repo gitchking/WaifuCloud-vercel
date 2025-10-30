@@ -3,6 +3,8 @@ export interface Wallpaper {
   title: string;
   imageUrl: string;
   image_url: string;
+  images?: string[]; // Array of image URLs for multiple images support
+  image_count?: number; // Number of images in the post
   tags: string[];
   credit?: string;
   category: string;
