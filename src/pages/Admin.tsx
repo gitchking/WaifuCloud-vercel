@@ -303,18 +303,94 @@ const Admin = () => {
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm("Are you sure you want to delete this category?")) return;
-
     try {
-      const { error } = await supabase
+      // Get category details first
+      const { data: category, error: fetchError } = await supabase
         .from("categories")
-        .delete()
-        .eq("id", categoryId);
+        .select("name")
+        .eq("id", categoryId)
+        .single();
 
-      if (error) throw error;
-      toast.success("Category deleted successfully");
+      if (fetchError) throw fetchError;
+      if (!category) throw new Error("Category not found");
+
+      // Check if any wallpapers use this category
+      const { count, error: countError } = await supabase
+        .from("wallpapers")
+        .select("id", { count: "exact", head: true })
+        .eq("category", category.name);
+
+      if (countError) throw countError;
+
+      // If wallpapers exist, ask user what to do
+      if (count && count > 0) {
+        const action = confirm(
+          `This category has ${count} waifu(s). Choose:\n\n` +
+          `OK = Move waifus to "Uncategorized" and delete category\n` +
+          `Cancel = Just deactivate the category (recommended)`
+        );
+
+        if (action) {
+          // User chose to reassign and delete
+          // First, ensure "Uncategorized" category exists
+          const { error: uncatError } = await supabase
+            .from("categories")
+            .upsert({
+              name: "Uncategorized",
+              description: "Waifus without a specific category",
+              is_active: true
+            }, {
+              onConflict: "name",
+              ignoreDuplicates: true
+            });
+
+          if (uncatError) console.warn("Uncategorized category issue:", uncatError);
+
+          // Reassign wallpapers
+          const { error: updateError } = await supabase
+            .from("wallpapers")
+            .update({ category: "Uncategorized" })
+            .eq("category", category.name);
+
+          if (updateError) throw updateError;
+
+          // Now delete the category
+          const { error: deleteError } = await supabase
+            .from("categories")
+            .delete()
+            .eq("id", categoryId);
+
+          if (deleteError) throw deleteError;
+
+          toast.success(`Category deleted and ${count} waifu(s) moved to Uncategorized`);
+        } else {
+          // User chose to deactivate
+          const { error: deactivateError } = await supabase
+            .from("categories")
+            .update({ is_active: false })
+            .eq("id", categoryId);
+
+          if (deactivateError) throw deactivateError;
+
+          toast.success("Category deactivated (can be reactivated later)");
+        }
+      } else {
+        // No wallpapers, safe to delete
+        if (!confirm("Delete this category? This cannot be undone.")) return;
+
+        const { error: deleteError } = await supabase
+          .from("categories")
+          .delete()
+          .eq("id", categoryId);
+
+        if (deleteError) throw deleteError;
+
+        toast.success("Category deleted successfully");
+      }
+
       fetchCategories();
     } catch (error: unknown) {
+      console.error("Delete category error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to delete category");
     }
   };
