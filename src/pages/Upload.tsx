@@ -24,6 +24,7 @@ import { Upload as UploadIcon, Sparkles, Loader2, Search, Plus, Image as ImageIc
 import { generateAutoTags } from "@/utils/autoTagger";
 import { TagSuggestions } from "@/components/TagSuggestions";
 import { MultipleImageUpload } from "@/components/MultipleImageUpload";
+import { CreditInput } from "@/components/CreditInput";
 
 interface Category {
   id: string;
@@ -527,19 +528,11 @@ const Upload = () => {
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="credit">Credit / Source (Optional)</Label>
-                <Input
-                  id="credit"
-                  type="text"
-                  placeholder="e.g., [Artist Name](https://pixiv.net/artworks/12345)"
-                  value={credit}
-                  onChange={(e) => setCredit(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use [Text](URL) format to make text clickable, or just paste a URL
-                </p>
-              </div>
+              <CreditInput
+                value={credit}
+                onChange={setCredit}
+                id="credit"
+              />
 
               <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                 <div className="space-y-1">

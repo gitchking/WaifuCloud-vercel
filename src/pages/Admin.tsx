@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MultipleImageUpload } from "@/components/MultipleImageUpload";
+import { CreditInput } from "@/components/CreditInput";
 
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -708,19 +709,11 @@ const Admin = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="admin-credit">Credit / Source (Optional)</Label>
-                <Input
-                  id="admin-credit"
-                  type="text"
-                  placeholder="e.g., [Artist Name](https://pixiv.net/artworks/12345)"
-                  value={credit}
-                  onChange={(e) => setCredit(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use [Text](URL) format to make text clickable, or just paste a URL
-                </p>
-              </div>
+              <CreditInput
+                value={credit}
+                onChange={setCredit}
+                id="admin-credit"
+              />
 
               <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                 <div className="space-y-1">
