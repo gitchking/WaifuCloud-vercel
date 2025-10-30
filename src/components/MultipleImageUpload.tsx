@@ -1,3 +1,4 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { X, Upload, Image as ImageIcon } from "lucide-react";
@@ -16,44 +17,80 @@ export const MultipleImageUpload = ({
   onImagesChange,
   maxImages = 15,
 }: MultipleImageUploadProps) => {
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  const processFiles = (files: FileList | File[]) => {
+    const newFiles = Array.from(files);
+    const totalImages = images.length + newFiles.length;
+
+    if (totalImages > maxImages) {
+      toast.error(`Maximum ${maxImages} images allowed per post`);
+      return;
+    }
+
+    // Validate file sizes (max 5MB each)
+    const invalidFiles = newFiles.filter(file => file.size > 5 * 1024 * 1024);
+    if (invalidFiles.length > 0) {
+      toast.error("Each image must be less than 5MB");
+      return;
+    }
+
+    // Validate file types
+    const invalidTypes = newFiles.filter(file => !file.type.startsWith('image/'));
+    if (invalidTypes.length > 0) {
+      toast.error("Only image files are allowed");
+      return;
+    }
+
+    // Create previews for new images
+    const newPreviews: string[] = [];
+    let loadedCount = 0;
+
+    newFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          newPreviews.push(event.target.result as string);
+          loadedCount++;
+
+          if (loadedCount === newFiles.length) {
+            onImagesChange(
+              [...images, ...newFiles],
+              [...imagePreviews, ...newPreviews]
+            );
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      const totalImages = images.length + newFiles.length;
+      processFiles(e.target.files);
+    }
+  };
 
-      if (totalImages > maxImages) {
-        toast.error(`Maximum ${maxImages} images allowed per post`);
-        return;
-      }
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
 
-      // Validate file sizes (max 5MB each)
-      const invalidFiles = newFiles.filter(file => file.size > 5 * 1024 * 1024);
-      if (invalidFiles.length > 0) {
-        toast.error("Each image must be less than 5MB");
-        return;
-      }
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
 
-      // Create previews for new images
-      const newPreviews: string[] = [];
-      let loadedCount = 0;
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
 
-      newFiles.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          if (event.target?.result) {
-            newPreviews.push(event.target.result as string);
-            loadedCount++;
-
-            if (loadedCount === newFiles.length) {
-              onImagesChange(
-                [...images, ...newFiles],
-                [...imagePreviews, ...newPreviews]
-              );
-            }
-          }
-        };
-        reader.readAsDataURL(file);
-      });
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      processFiles(files);
     }
   };
 
@@ -93,12 +130,21 @@ export const MultipleImageUpload = ({
 
       {images.length === 0 ? (
         <div
-          className="border-2 border-dashed border-border rounded-lg p-12 text-center cursor-pointer hover:border-primary/50 transition-colors"
+          className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
+            isDragging 
+              ? 'border-primary bg-primary/5' 
+              : 'border-border hover:border-primary/50'
+          }`}
           onClick={() => document.getElementById("multiple-image-input")?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
-          <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <ImageIcon className={`h-12 w-12 mx-auto mb-4 transition-colors ${
+            isDragging ? 'text-primary' : 'text-muted-foreground'
+          }`} />
           <p className="text-sm text-muted-foreground mb-2">
-            Click to upload images or drag and drop
+            {isDragging ? 'Drop images here' : 'Click to upload images or drag and drop'}
           </p>
           <p className="text-xs text-muted-foreground">
             Up to {maxImages} images, max 5MB each

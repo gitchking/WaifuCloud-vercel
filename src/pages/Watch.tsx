@@ -355,8 +355,19 @@ const Watch = () => {
 
                       {wallpaper.credit && (
                         <div>
-                          <h2 className="text-sm font-medium text-muted-foreground mb-2">Credit</h2>
-                          <p className="text-sm">{wallpaper.credit}</p>
+                          <h2 className="text-sm font-medium text-muted-foreground mb-2">Credit / Source</h2>
+                          {wallpaper.credit.match(/^https?:\/\//i) ? (
+                            <a 
+                              href={wallpaper.credit} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary hover:underline break-all"
+                            >
+                              {wallpaper.credit}
+                            </a>
+                          ) : (
+                            <p className="text-sm break-words">{wallpaper.credit}</p>
+                          )}
                         </div>
                       )}
 
