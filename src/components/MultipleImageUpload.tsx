@@ -26,10 +26,10 @@ export const MultipleImageUpload = ({
         return;
       }
 
-      // Validate file sizes (max 5MB each)
-      const invalidFiles = newFiles.filter(file => file.size > 5 * 1024 * 1024);
+      // Validate file sizes (max 50MB each)
+      const invalidFiles = newFiles.filter(file => file.size > 50 * 1024 * 1024);
       if (invalidFiles.length > 0) {
-        toast.error("Each image must be less than 5MB");
+        toast.error("Each image must be less than 50MB");
         return;
       }
 
@@ -101,7 +101,7 @@ export const MultipleImageUpload = ({
             Click to upload images or drag and drop
           </p>
           <p className="text-xs text-muted-foreground">
-            Up to {maxImages} images, max 5MB each
+            Up to {maxImages} images, max 50MB each
           </p>
         </div>
       ) : (
