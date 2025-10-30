@@ -528,17 +528,14 @@ const Upload = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="credit">Credit / Source (Optional)</Label>
+                <Label htmlFor="credit">Credit (Optional)</Label>
                 <Input
                   id="credit"
                   type="text"
-                  placeholder="Artist name, URL, or source (e.g., https://pixiv.net/...)"
+                  placeholder="Artist name or source"
                   value={credit}
                   onChange={(e) => setCredit(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  You can paste a URL to the original source
-                </p>
               </div>
 
               <div className="flex items-center justify-between p-4 border border-border rounded-lg">
